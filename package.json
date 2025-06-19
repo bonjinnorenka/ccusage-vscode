@@ -1,0 +1,67 @@
+{
+  "name": "ccusage-vscode",
+  "displayName": "CCUsage Monitor",
+  "description": "Monitor Claude Code 5-hour usage blocks and costs in VSCode status bar",
+  "version": "1.0.0",
+  "publisher": "bonjinnorenka",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "CCUsage Monitor",
+      "properties": {
+        "ccusage.updateInterval": {
+          "type": "number",
+          "default": 30,
+          "description": "Update interval in seconds"
+        },
+        "ccusage.showCost": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show cost in status bar"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bonjinnorenka/ccusage-vscode.git"
+  },
+  "keywords": [
+    "claude",
+    "usage",
+    "monitor",
+    "cost",
+    "tracking"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bonjinnorenka/ccusage-vscode/issues"
+  },
+  "homepage": "https://github.com/bonjinnorenka/ccusage-vscode#readme",
+  "dependencies": {
+    "ccusage": "^13.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.70.0",
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.21.0"
+  }
+}
