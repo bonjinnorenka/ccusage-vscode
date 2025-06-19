@@ -1,0 +1,12 @@
+# Global code owners
+* @bonjinnorenka
+
+# TypeScript source code
+src/ @bonjinnorenka
+
+# Configuration files
+*.json @bonjinnorenka
+*.md @bonjinnorenka
+
+# GitHub workflows
+.github/ @bonjinnorenka
