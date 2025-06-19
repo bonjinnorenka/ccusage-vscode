@@ -2,7 +2,7 @@
   "name": "bonjinnorenka-ccusage-vscode",
   "displayName": "Bonjinnorenka CCUsage Monitor",
   "description": "Monitor Claude Code 5-hour usage blocks and costs in VSCode status bar",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "bonjinnorenka",
   "engines": {
     "vscode": "^1.70.0"
