@@ -11,17 +11,15 @@ VSCodeのステータスバーでClaude Codeの5時間ブロック使用量と�
 
 ## インストール
 
-### VSIXファイルから
+### VS Code Marketplace
 
-1. リリースページから最新の`.vsix`ファイルをダウンロード
-2. コマンドパレット（`Ctrl+Shift+P`）を開く
-3. `Extensions: Install from VSIX...`を実行
-4. ダウンロードした`.vsix`ファイルを選択
+1. VSCodeの拡張機能タブを開く
+2. "Bonjinnorenka CCUsage Monitor"を検索
+3. インストールボタンをクリック
 
-### コマンドライン
-
+または、コマンドラインから：
 ```bash
-code --install-extension ccusage-vscode-1.0.0.vsix
+code --install-extension bonjinnorenka.bonjinnorenka-ccusage-vscode
 ```
 
 ## 設定
