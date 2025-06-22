@@ -56,12 +56,12 @@
   },
   "homepage": "https://github.com/bonjinnorenka/ccusage-vscode#readme",
   "dependencies": {
-    "ccusage": "^13.0.1"
+    "ccusage": "^15.1.0"
   },
   "devDependencies": {
-    "@types/vscode": "^1.70.0",
     "@types/node": "^18.0.0",
-    "typescript": "^5.0.0",
-    "@vscode/vsce": "^2.21.0"
+    "@types/vscode": "^1.70.0",
+    "@vscode/vsce": "^2.21.0",
+    "typescript": "^5.0.0"
   }
 }
