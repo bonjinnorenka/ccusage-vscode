@@ -1,12 +1,13 @@
 # CCUsage Monitor for VSCode
 
-VSCodeのステータスバーでClaude Codeの5時間ブロック使用量とコストをリアルタイムで監視する拡張機能です。
+VSCodeのステータスバーでClaude Codeの5時間ブロック使用量とOpenAI Codex CLIの1日使用量を確認できる拡張機能です。
 
 ## 機能
 
-- 📊 **リアルタイム監視**: 現在の5時間ブロックの残り時間と消費金額を表示
+- 📊 **Claude監視**: 現在の5時間ブロックの残り時間と消費金額を表示
+- 📅 **Codex日次サマリ**: 当日のCodex CLIトークン使用量とコスト（価格が判明しているモデルのみ）を表示
 - 🔄 **自動更新**: 30秒間隔で最新の使用状況に更新
-- ⚙️ **カスタマイズ可能**: 更新間隔とコスト表示のオン/オフを設定可能
+- ⚙️ **カスタマイズ可能**: 更新間隔、コスト表示、表示プロバイダを設定可能
 - 🎯 **ステータスバー統合**: VSCodeの右下に常時表示
 
 ## インストール
@@ -29,7 +30,8 @@ code --install-extension bonjinnorenka.bonjinnorenka-ccusage-vscode
 ```json
 {
   "ccusage.updateInterval": 30,
-  "ccusage.showCost": true
+  "ccusage.showCost": true,
+  "ccusage.providerMode": "auto"
 }
 ```
 
@@ -37,6 +39,7 @@ code --install-extension bonjinnorenka.bonjinnorenka-ccusage-vscode
 
 - `ccusage.updateInterval`: 更新間隔（秒）- デフォルト: 30秒
 - `ccusage.showCost`: コスト表示のオン/オフ - デフォルト: true
+- `ccusage.providerMode`: 表示するプロバイダ（`auto` / `claude` / `codex` / `both`）- デフォルト: `auto`
 
 ## 表示内容
 
@@ -50,8 +53,8 @@ code --install-extension bonjinnorenka.bonjinnorenka-ccusage-vscode
 
 ## 前提条件
 
-- Claude Codeが正常にインストールされ、使用データが保存されていること
-- Node.js環境でccusageライブラリが利用可能であること
+- Claude Codeが正常にインストールされ、`~/.claude` または `~/.config/claude` に使用データが保存されていること
+- OpenAI Codex CLI を使用する場合は `~/.codex/sessions` に JSONL ログが保存されていること
 
 ## トラブルシューティング
 
@@ -66,9 +69,10 @@ code --install-extension bonjinnorenka.bonjinnorenka-ccusage-vscode
 - 設定で`updateInterval`を短く設定してみてください
 - VSCodeを再起動してみてください
 
-## 依存関係
+## 実装メモ
 
-この拡張機能は [ccusage](https://github.com/ryoppippi/ccusage) ライブラリを使用しています。ccusageは@ryopippiによって開発されたClaude Code使用量分析ツールです。
+- Claude / Codex の集計ロジックは [ccusage](https://github.com/ryoppippi/ccusage) の `apps/ccusage/src/data-loader.ts` と `apps/codex/src/data-loader.ts` を参考に再実装しています（MIT ライセンス）。
+- Codex の日次コスト計算は主要モデル向けの既知の単価を静的に保持しています。単価が不明なモデルはトークン数のみ表示します。
 
 ## ライセンス
 

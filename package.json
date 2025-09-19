@@ -27,6 +27,17 @@
           "type": "boolean",
           "default": true,
           "description": "Show cost in status bar"
+        },
+        "ccusage.providerMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "claude",
+            "codex",
+            "both"
+          ],
+          "default": "auto",
+          "description": "Select which usage providers to display"
         }
       }
     }
@@ -55,9 +66,6 @@
     "url": "https://github.com/bonjinnorenka/ccusage-vscode/issues"
   },
   "homepage": "https://github.com/bonjinnorenka/ccusage-vscode#readme",
-  "dependencies": {
-    "ccusage": "^15.1.0"
-  },
   "devDependencies": {
     "@types/node": "^18.0.0",
     "@types/vscode": "^1.70.0",
