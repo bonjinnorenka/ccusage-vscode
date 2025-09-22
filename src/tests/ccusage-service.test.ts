@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CcusageService } from '../src/ccusage-service';
+import { CcusageService } from '../ccusage-service';
 
 const CLAUDE_JSON = (timestamp: string) => JSON.stringify({
     timestamp,
