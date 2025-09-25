@@ -40,6 +40,18 @@ const CODEX_TOKEN_EVENT = (timestamp: string) => JSON.stringify({
                 total_tokens: 2500,
             },
         },
+        rate_limits: {
+            primary: {
+                used_percent: 12.5,
+                window_minutes: 299,
+                resets_in_seconds: 1800,
+            },
+            secondary: {
+                used_percent: 45.6,
+                window_minutes: 10079,
+                resets_in_seconds: 7200,
+            },
+        },
     },
 });
 
@@ -54,6 +66,10 @@ describe('CcusageService', () => {
     let homedirSpy: ReturnType<typeof vi.spyOn> | null = null;
 
     beforeEach(async () => {
+        vi.useFakeTimers();
+        const baseTime = new Date('2024-01-01T12:00:00Z');
+        vi.setSystemTime(baseTime);
+
         tempBase = await fs.mkdtemp(path.join(os.tmpdir(), 'ccusage-test-'));
         fakeHome = path.join(tempBase, 'home');
         await fs.mkdir(fakeHome, { recursive: true });
@@ -70,7 +86,7 @@ describe('CcusageService', () => {
         await fs.mkdir(path.join(codexHome, 'sessions'), { recursive: true });
 
         const now = new Date();
-        const recent = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
+        const recent = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
 
         const claudeFile = path.join(claudeRoot, 'projects', 'demo', 'session.jsonl');
         await fs.writeFile(claudeFile, `${CLAUDE_JSON(recent)}\n`);
@@ -84,6 +100,8 @@ describe('CcusageService', () => {
     });
 
     afterEach(async () => {
+        vi.useRealTimers();
+
         if (homedirSpy) {
             homedirSpy.mockRestore();
             homedirSpy = null;
@@ -140,6 +158,18 @@ describe('CcusageService', () => {
         const expectedCost = (800 / 1_000_000) * 0.6 + (200 / 1_000_000) * 0.06 + (1500 / 1_000_000) * 2;
         expect(codex?.costUSD).toBeCloseTo(expectedCost, 10);
         expect(codex?.models[0]?.costUSD).toBeCloseTo(expectedCost, 10);
+
+        expect(codex?.rateLimits.primary).toBeDefined();
+        expect(codex?.rateLimits.primary?.label).toBe('5h');
+        expect(codex?.rateLimits.primary?.usedPercent).toBeCloseTo(12.5, 6);
+        expect(codex?.rateLimits.primary?.remainingPercent).toBeCloseTo(87.5, 6);
+        expect(codex?.rateLimits.primary?.resetsInSeconds).toBeCloseTo(1200, 6);
+
+        expect(codex?.rateLimits.secondary).toBeDefined();
+        expect(codex?.rateLimits.secondary?.label).toBe('1w');
+        expect(codex?.rateLimits.secondary?.usedPercent).toBeCloseTo(45.6, 6);
+        expect(codex?.rateLimits.secondary?.remainingPercent).toBeCloseTo(54.4, 6);
+        expect(codex?.rateLimits.secondary?.resetsInSeconds).toBeCloseTo(6600, 6);
 
         const today = new Date();
         const expectedDateKey = new Intl.DateTimeFormat('en-CA', {

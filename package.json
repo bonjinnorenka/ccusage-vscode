@@ -2,7 +2,7 @@
   "name": "bonjinnorenka-ccusage-vscode",
   "displayName": "Bonjinnorenka CCUsage Monitor",
   "description": "Monitor Claude Code 5-hour usage blocks and costs in VSCode status bar",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "publisher": "bonjinnorenka",
   "engines": {
     "vscode": "^1.70.0"
@@ -38,6 +38,25 @@
           ],
           "default": "auto",
           "description": "Select which usage providers to display"
+        },
+        "ccusage.codexDisplayWindow": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "5h",
+            "weekly"
+          ],
+          "default": "auto",
+          "description": "Choose which Codex window to show in the status bar (auto selects the window with the lowest remaining percentage)"
+        },
+        "ccusage.codexPercentageMode": {
+          "type": "string",
+          "enum": [
+            "remaining",
+            "used"
+          ],
+          "default": "remaining",
+          "description": "Display either the remaining or used percentage for Codex rate limits in the status bar"
         }
       }
     }

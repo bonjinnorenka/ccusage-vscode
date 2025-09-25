@@ -47,6 +47,20 @@ export interface CodexModelUsageSummary {
     isFallbackModel: boolean;
 }
 
+export interface CodexRateLimitWindow {
+    id: 'primary' | 'secondary' | string;
+    label: string;
+    windowMinutes?: number;
+    resetsInSeconds?: number;
+    usedPercent?: number;
+    remainingPercent?: number;
+}
+
+export interface CodexRateLimits {
+    primary?: CodexRateLimitWindow;
+    secondary?: CodexRateLimitWindow;
+}
+
 export interface CodexUsageData {
     provider: 'codex';
     available: boolean;
@@ -59,6 +73,7 @@ export interface CodexUsageData {
     timezone: string;
     missingDirectories: string[];
     issues: string[];
+    rateLimits: CodexRateLimits;
 }
 
 export type UsageData = ClaudeUsageData | CodexUsageData;
@@ -94,6 +109,18 @@ type TokenUsageEvent = {
 };
 
 export type TokenUsageDelta = RawCodexUsage;
+
+type RateLimitData = {
+    windowMinutes?: number;
+    resetsInSeconds?: number;
+    usedPercent?: number;
+};
+
+type CodexRateLimitSnapshot = {
+    timestamp: Date;
+    primary?: RateLimitData;
+    secondary?: RateLimitData;
+};
 
 type ModelPricing = {
     inputCostPerMToken: number;
@@ -231,6 +258,7 @@ export class CcusageService {
         const events: TokenUsageEvent[] = [];
         const missingDirectories: string[] = [];
         const issues: string[] = [];
+        let latestRateLimits: CodexRateLimitSnapshot | null = null;
 
         for (const dir of sessionDirs) {
             if (!(await pathExists(dir))) {
@@ -242,6 +270,11 @@ export class CcusageService {
             for (const file of files) {
                 const result = await parseCodexSession(file);
                 events.push(...result.events);
+                if (result.rateLimits) {
+                    if (!latestRateLimits || result.rateLimits.timestamp.getTime() > latestRateLimits.timestamp.getTime()) {
+                        latestRateLimits = result.rateLimits;
+                    }
+                }
                 if (result.issues.length > 0) {
                     issues.push(...result.issues.map(issue => `${path.basename(file)}: ${issue}`));
                 }
@@ -262,6 +295,7 @@ export class CcusageService {
                 timezone,
                 missingDirectories,
                 issues,
+                rateLimits: toCodexRateLimits(latestRateLimits),
             };
         }
 
@@ -283,6 +317,7 @@ export class CcusageService {
                 timezone,
                 missingDirectories,
                 issues,
+                rateLimits: toCodexRateLimits(latestRateLimits),
             };
         }
 
@@ -345,6 +380,7 @@ export class CcusageService {
             timezone,
             missingDirectories,
             issues,
+            rateLimits: toCodexRateLimits(latestRateLimits),
         };
     }
 
@@ -502,9 +538,10 @@ function extractClaudeUsage(record: Record<string, unknown>): ClaudeUsageEntry |
     };
 }
 
-async function parseCodexSession(filePath: string): Promise<{ events: TokenUsageEvent[]; issues: string[] }> {
+async function parseCodexSession(filePath: string): Promise<{ events: TokenUsageEvent[]; issues: string[]; rateLimits: CodexRateLimitSnapshot | null }> {
     const events: TokenUsageEvent[] = [];
     const issues: string[] = [];
+    let latestRateLimits: CodexRateLimitSnapshot | null = null;
 
     try {
         const content = await fs.readFile(filePath, 'utf8');
@@ -549,6 +586,18 @@ async function parseCodexSession(filePath: string): Promise<{ events: TokenUsage
             const timestamp = parseTimestamp(parsed);
             if (!timestamp) {
                 continue;
+            }
+
+            const rateLimitsRaw = payload?.rate_limits as Record<string, unknown> | undefined;
+            if (rateLimitsRaw) {
+                const snapshot: CodexRateLimitSnapshot = {
+                    timestamp,
+                    primary: normalizeRateLimitData(rateLimitsRaw.primary),
+                    secondary: normalizeRateLimitData(rateLimitsRaw.secondary),
+                };
+                if (!latestRateLimits || snapshot.timestamp.getTime() >= latestRateLimits.timestamp.getTime()) {
+                    latestRateLimits = snapshot;
+                }
             }
 
             const info = payload?.info as Record<string, unknown> | undefined;
@@ -605,7 +654,124 @@ async function parseCodexSession(filePath: string): Promise<{ events: TokenUsage
         issues.push(`Failed to read session: ${String(error)}`);
     }
 
-    return { events, issues };
+    return { events, issues, rateLimits: latestRateLimits };
+}
+
+function toCodexRateLimits(snapshot: CodexRateLimitSnapshot | null): CodexRateLimits {
+    if (!snapshot) {
+        return {};
+    }
+
+    const now = new Date();
+
+    return {
+        primary: snapshot.primary
+            ? createRateLimitWindow('primary', snapshot.primary, snapshot.timestamp, now)
+            : undefined,
+        secondary: snapshot.secondary
+            ? createRateLimitWindow('secondary', snapshot.secondary, snapshot.timestamp, now)
+            : undefined,
+    };
+}
+
+function createRateLimitWindow(
+    id: 'primary' | 'secondary' | string,
+    data: RateLimitData,
+    snapshotTimestamp: Date,
+    referenceTime: Date,
+): CodexRateLimitWindow {
+    const usedPercent = clampPercent(data.usedPercent);
+    const remainingPercent = usedPercent == null ? undefined : clampPercent(100 - usedPercent);
+    const resetsInSeconds = adjustResetsInSeconds(data.resetsInSeconds, snapshotTimestamp, referenceTime);
+    return {
+        id,
+        label: resolveRateLimitLabel(id, data.windowMinutes),
+        windowMinutes: data.windowMinutes,
+        resetsInSeconds,
+        usedPercent,
+        remainingPercent,
+    };
+}
+
+function adjustResetsInSeconds(
+    original: number | undefined,
+    snapshotTimestamp: Date,
+    referenceTime: Date,
+): number | undefined {
+    if (original == null) {
+        return undefined;
+    }
+
+    if (!Number.isFinite(original)) {
+        return undefined;
+    }
+
+    const elapsedMs = referenceTime.getTime() - snapshotTimestamp.getTime();
+    const elapsedSeconds = elapsedMs <= 0 ? 0 : elapsedMs / 1000;
+    const remaining = original - elapsedSeconds;
+
+    if (!Number.isFinite(remaining)) {
+        return undefined;
+    }
+
+    return remaining <= 0 ? 0 : remaining;
+}
+
+function resolveRateLimitLabel(id: string, windowMinutes?: number): string {
+    if (windowMinutes == null) {
+        return id;
+    }
+
+    if (Math.abs(windowMinutes - 300) <= 5 || Math.abs(windowMinutes - 299) <= 5) {
+        return '5h';
+    }
+
+    if (Math.abs(windowMinutes - 10080) <= 60 || Math.abs(windowMinutes - 10079) <= 60) {
+        return '1w';
+    }
+
+    if (windowMinutes >= 1440) {
+        const days = Math.round(windowMinutes / 1440);
+        return `${days}d`;
+    }
+
+    if (windowMinutes >= 60) {
+        const hours = Math.round(windowMinutes / 60);
+        return `${hours}h`;
+    }
+
+    return `${Math.round(windowMinutes)}m`;
+}
+
+function normalizeRateLimitData(value: unknown): RateLimitData | undefined {
+    if (!value || typeof value !== 'object') {
+        return undefined;
+    }
+
+    const record = value as Record<string, unknown>;
+    const windowMinutes = asNonNegativeNumber(record.window_minutes ?? record.windowMinutes);
+    const resetsInSeconds = asNonNegativeNumber(record.resets_in_seconds ?? record.reset_in_seconds ?? record.resets_in_secs);
+    const usedPercent = asNonNegativeNumber(record.used_percent ?? record.usedPercent);
+
+    if (windowMinutes == null && resetsInSeconds == null && usedPercent == null) {
+        return undefined;
+    }
+
+    return {
+        windowMinutes,
+        resetsInSeconds,
+        usedPercent,
+    };
+}
+
+function clampPercent(value: number | undefined): number | undefined {
+    if (value == null) {
+        return undefined;
+    }
+    if (!Number.isFinite(value)) {
+        return undefined;
+    }
+    return Math.min(100, Math.max(0, value));
 }
 
 function normalizeCodexUsage(value: unknown): RawCodexUsage | null {
@@ -783,6 +949,19 @@ function asPositiveNumber(value: unknown): number {
         return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
     }
     return 0;
+}
+
+function asNonNegativeNumber(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const parsed = Number.parseFloat(value);
+        if (Number.isFinite(parsed) && parsed >= 0) {
+            return parsed;
+        }
+    }
+    return undefined;
 }
 
 async function pathExists(target: string): Promise<boolean> {
