@@ -25,7 +25,35 @@ const CODEX_TURN_CONTEXT = (timestamp: string) => JSON.stringify({
     },
 });
 
-const CODEX_TOKEN_EVENT = (timestamp: string) => JSON.stringify({
+type CodexRateLimitFixture = {
+    primary: {
+        used_percent: number;
+        window_minutes: number;
+        resets_in_seconds?: number;
+        resets_at?: number;
+    };
+    secondary: {
+        used_percent: number;
+        window_minutes: number;
+        resets_in_seconds?: number;
+        resets_at?: number;
+    };
+};
+
+const DEFAULT_CODEX_RATE_LIMITS: CodexRateLimitFixture = {
+    primary: {
+        used_percent: 12.5,
+        window_minutes: 299,
+        resets_in_seconds: 1800,
+    },
+    secondary: {
+        used_percent: 45.6,
+        window_minutes: 10079,
+        resets_in_seconds: 7200,
+    },
+};
+
+const CODEX_TOKEN_EVENT = (timestamp: string, rateLimits: CodexRateLimitFixture = DEFAULT_CODEX_RATE_LIMITS) => JSON.stringify({
     type: 'event_msg',
     timestamp,
     payload: {
@@ -40,18 +68,7 @@ const CODEX_TOKEN_EVENT = (timestamp: string) => JSON.stringify({
                 total_tokens: 2500,
             },
         },
-        rate_limits: {
-            primary: {
-                used_percent: 12.5,
-                window_minutes: 299,
-                resets_in_seconds: 1800,
-            },
-            secondary: {
-                used_percent: 45.6,
-                window_minutes: 10079,
-                resets_in_seconds: 7200,
-            },
-        },
+        rate_limits: rateLimits,
     },
 });
 
@@ -166,7 +183,7 @@ describe('CcusageService', () => {
         expect(codex?.rateLimits.primary?.resetsInSeconds).toBeCloseTo(1200, 6);
 
         expect(codex?.rateLimits.secondary).toBeDefined();
-        expect(codex?.rateLimits.secondary?.label).toBe('1w');
+        expect(codex?.rateLimits.secondary?.label).toBe('1 week');
         expect(codex?.rateLimits.secondary?.usedPercent).toBeCloseTo(45.6, 6);
         expect(codex?.rateLimits.secondary?.remainingPercent).toBeCloseTo(54.4, 6);
         expect(codex?.rateLimits.secondary?.resetsInSeconds).toBeCloseTo(6600, 6);
@@ -186,5 +203,46 @@ describe('CcusageService', () => {
         }).format(today);
         expect(codex?.dateKey).toBe(expectedDateKey);
         expect(codex?.displayDate).toBe(expectedDisplayDate);
+    });
+
+    it('supports resets_at values for 5h and 1 week windows', async () => {
+        const codexHome = process.env.CODEX_HOME;
+        if (!codexHome) {
+            throw new Error('CODEX_HOME is not set in test setup');
+        }
+
+        const now = new Date();
+        const recent = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+        const primaryResetsAtSeconds = Math.floor((now.getTime() + 3600 * 1000) / 1000);
+        const secondaryResetsAtMillis = now.getTime() + (2 * 24 * 60 * 60 * 1000);
+
+        const codexFile = path.join(codexHome, 'sessions', 'session.jsonl');
+        const codexLines = [
+            CODEX_TURN_CONTEXT(recent),
+            CODEX_TOKEN_EVENT(recent, {
+                primary: {
+                    used_percent: 20,
+                    window_minutes: 300,
+                    resets_at: primaryResetsAtSeconds,
+                },
+                secondary: {
+                    used_percent: 30,
+                    window_minutes: 10080,
+                    resets_at: secondaryResetsAtMillis,
+                },
+            }),
+        ];
+        await fs.writeFile(codexFile, `${codexLines.join('\n')}\n`);
+
+        const service = new CcusageService();
+        const summary = await service.getUsage('codex', { locale: 'en-US', timezone: 'UTC' });
+        const codex = summary.codex;
+
+        expect(codex).toBeDefined();
+        expect(codex?.rateLimits.primary?.label).toBe('5h');
+        expect(codex?.rateLimits.primary?.resetsInSeconds).toBeCloseTo(3600, 6);
+
+        expect(codex?.rateLimits.secondary?.label).toBe('1 week');
+        expect(codex?.rateLimits.secondary?.resetsInSeconds).toBeCloseTo(172800, 6);
     });
 });

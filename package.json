@@ -44,10 +44,11 @@
           "enum": [
             "auto",
             "5h",
-            "weekly"
+            "weekly",
+            "1 week"
           ],
           "default": "auto",
-          "description": "Choose which Codex window to show in the status bar (auto selects the window with the lowest remaining percentage)"
+          "description": "Choose which Codex window to show in the status bar (weekly and 1 week are equivalent; auto selects the window with the lowest remaining percentage)"
         },
         "ccusage.codexPercentageMode": {
           "type": "string",

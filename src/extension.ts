@@ -14,7 +14,7 @@ let statusBarItem: vscode.StatusBarItem;
 let ccusageService: CcusageService;
 let updateTimer: NodeJS.Timeout | undefined;
 
-type CodexDisplayMode = 'auto' | '5h' | 'weekly';
+type CodexDisplayMode = 'auto' | '5h' | 'weekly' | '1 week';
 type CodexPercentageMode = 'remaining' | 'used';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -294,7 +294,7 @@ function selectCodexWindow(rateLimits: CodexRateLimits, mode: CodexDisplayMode):
         return primary ?? secondary ?? undefined;
     }
 
-    if (mode === 'weekly') {
+    if (mode === 'weekly' || mode === '1 week') {
         return secondary ?? primary ?? undefined;
     }
 

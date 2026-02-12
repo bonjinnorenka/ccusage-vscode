@@ -42,7 +42,7 @@ code --install-extension bonjinnorenka.bonjinnorenka-ccusage-vscode
 - `ccusage.updateInterval`: 更新間隔（秒）- デフォルト: 30秒
 - `ccusage.showCost`: コスト表示のオン/オフ - デフォルト: true
 - `ccusage.providerMode`: 表示するプロバイダ（`auto` / `claude` / `codex` / `both`）- デフォルト: `auto`
-- `ccusage.codexDisplayWindow`: ステータスバーに表示するCodexレートリミット枠（`auto` / `5h` / `weekly`）- デフォルト: `auto`
+- `ccusage.codexDisplayWindow`: ステータスバーに表示するCodexレートリミット枠（`auto` / `5h` / `weekly` / `1 week`、`weekly` と `1 week` は同義）- デフォルト: `auto`
 - `ccusage.codexPercentageMode`: Codexレートリミットの残量か使用量かを選択（`remaining` / `used`）- デフォルト: `remaining`
 
 ## 表示内容

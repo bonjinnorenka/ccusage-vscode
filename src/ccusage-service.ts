@@ -7,6 +7,7 @@ const CLAUDE_SESSION_DURATION_MS = 5 * 60 * 60 * 1000;
 const MILLION = 1_000_000;
 const CLAUDE_PROJECTS_DIR = 'projects';
 const CLAUDE_JSONL_LIMIT = 200; // avoid scanning the entire history when unnecessary
+const CODEX_JSONL_LIMIT = 200; // prefer recent sessions to reduce scan cost
 const CODEX_DEFAULT_SESSION_SUBDIR = 'sessions';
 const CODEX_ENV_HOME = 'CODEX_HOME';
 const CLAUDE_ENV_CONFIG_DIR = 'CLAUDE_CONFIG_DIR';
@@ -113,6 +114,7 @@ export type TokenUsageDelta = RawCodexUsage;
 type RateLimitData = {
     windowMinutes?: number;
     resetsInSeconds?: number;
+    resetsAtEpochMs?: number;
     usedPercent?: number;
 };
 
@@ -266,7 +268,7 @@ export class CcusageService {
                 continue;
             }
 
-            const files = await collectJsonlFiles([dir]);
+            const files = await collectJsonlFiles([dir], CODEX_JSONL_LIMIT);
             for (const file of files) {
                 const result = await parseCodexSession(file);
                 events.push(...result.events);
@@ -682,7 +684,7 @@ function createRateLimitWindow(
 ): CodexRateLimitWindow {
     const usedPercent = clampPercent(data.usedPercent);
     const remainingPercent = usedPercent == null ? undefined : clampPercent(100 - usedPercent);
-    const resetsInSeconds = adjustResetsInSeconds(data.resetsInSeconds, snapshotTimestamp, referenceTime);
+    const resetsInSeconds = resolveResetsInSeconds(data, snapshotTimestamp, referenceTime);
     return {
         id,
         label: resolveRateLimitLabel(id, data.windowMinutes),
@@ -693,16 +695,21 @@ function createRateLimitWindow(
     };
 }
 
-function adjustResetsInSeconds(
-    original: number | undefined,
+function resolveResetsInSeconds(
+    data: RateLimitData,
     snapshotTimestamp: Date,
     referenceTime: Date,
 ): number | undefined {
-    if (original == null) {
-        return undefined;
+    if (data.resetsAtEpochMs != null) {
+        const remainingSeconds = (data.resetsAtEpochMs - referenceTime.getTime()) / 1000;
+        if (!Number.isFinite(remainingSeconds)) {
+            return undefined;
+        }
+        return remainingSeconds <= 0 ? 0 : remainingSeconds;
     }
 
-    if (!Number.isFinite(original)) {
+    const original = data.resetsInSeconds;
+    if (original == null || !Number.isFinite(original)) {
         return undefined;
     }
 
@@ -727,7 +734,7 @@ function resolveRateLimitLabel(id: string, windowMinutes?: number): string {
     }
 
     if (Math.abs(windowMinutes - 10080) <= 60 || Math.abs(windowMinutes - 10079) <= 60) {
-        return '1w';
+        return '1 week';
     }
 
     if (windowMinutes >= 1440) {
@@ -751,17 +758,29 @@ function normalizeRateLimitData(value: unknown): RateLimitData | undefined {
     const record = value as Record<string, unknown>;
     const windowMinutes = asNonNegativeNumber(record.window_minutes ?? record.windowMinutes);
     const resetsInSeconds = asNonNegativeNumber(record.resets_in_seconds ?? record.reset_in_seconds ?? record.resets_in_secs);
+    const resetsAtEpochMs = normalizeEpochMs(record.resets_at ?? record.reset_at ?? record.resetsAt ?? record.resetAt);
     const usedPercent = asNonNegativeNumber(record.used_percent ?? record.usedPercent);
 
-    if (windowMinutes == null && resetsInSeconds == null && usedPercent == null) {
+    if (windowMinutes == null && resetsInSeconds == null && resetsAtEpochMs == null && usedPercent == null) {
         return undefined;
     }
 
     return {
         windowMinutes,
         resetsInSeconds,
+        resetsAtEpochMs,
         usedPercent,
     };
+}
+
+function normalizeEpochMs(value: unknown): number | undefined {
+    const raw = asNonNegativeNumber(value);
+    if (raw == null || !Number.isFinite(raw)) {
+        return undefined;
+    }
+
+    // Handles both UNIX seconds and UNIX milliseconds.
+    return raw >= 1_000_000_000_000 ? raw : raw * 1000;
 }
 
 function clampPercent(value: number | undefined): number | undefined {
