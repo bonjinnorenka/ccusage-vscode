@@ -17,11 +17,11 @@ const CLAUDE_JSON = (timestamp: string) => JSON.stringify({
     },
 });
 
-const CODEX_TURN_CONTEXT = (timestamp: string) => JSON.stringify({
+const CODEX_TURN_CONTEXT = (timestamp: string, model = 'gpt-5-mini') => JSON.stringify({
     type: 'turn_context',
     timestamp,
     payload: {
-        model: 'gpt-5-mini',
+        model,
     },
 });
 
@@ -53,12 +53,16 @@ const DEFAULT_CODEX_RATE_LIMITS: CodexRateLimitFixture = {
     },
 };
 
-const CODEX_TOKEN_EVENT = (timestamp: string, rateLimits: CodexRateLimitFixture = DEFAULT_CODEX_RATE_LIMITS) => JSON.stringify({
+const CODEX_TOKEN_EVENT = (
+    timestamp: string,
+    rateLimits: CodexRateLimitFixture = DEFAULT_CODEX_RATE_LIMITS,
+    model = 'gpt-5-mini',
+) => JSON.stringify({
     type: 'event_msg',
     timestamp,
     payload: {
         type: 'token_count',
-        model: 'gpt-5-mini',
+        model,
         info: {
             last_token_usage: {
                 input_tokens: 1000,
@@ -244,5 +248,42 @@ describe('CcusageService', () => {
 
         expect(codex?.rateLimits.secondary?.label).toBe('1 week');
         expect(codex?.rateLimits.secondary?.resetsInSeconds).toBeCloseTo(172800, 6);
+    });
+
+    it('applies pricing for gpt-5.3-codex and gpt-5.2', async () => {
+        const codexHome = process.env.CODEX_HOME;
+        if (!codexHome) {
+            throw new Error('CODEX_HOME is not set in test setup');
+        }
+
+        const now = new Date();
+        const recent = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+
+        const codexFile = path.join(codexHome, 'sessions', 'session.jsonl');
+        const codexLines = [
+            CODEX_TURN_CONTEXT(recent, 'gpt-5.3-codex'),
+            CODEX_TOKEN_EVENT(recent, DEFAULT_CODEX_RATE_LIMITS, 'gpt-5.3-codex'),
+            CODEX_TURN_CONTEXT(recent, 'gpt-5.2'),
+            CODEX_TOKEN_EVENT(recent, DEFAULT_CODEX_RATE_LIMITS, 'gpt-5.2'),
+        ];
+        await fs.writeFile(codexFile, `${codexLines.join('\n')}\n`);
+
+        const service = new CcusageService();
+        const summary = await service.getUsage('codex', { locale: 'en-US', timezone: 'UTC' });
+        const codex = summary.codex;
+
+        expect(codex).toBeDefined();
+        expect(codex?.issues).toEqual([]);
+        expect(codex?.models.length).toBe(2);
+
+        const expectedPerModel = (800 / 1_000_000) * 1.75 + (200 / 1_000_000) * 0.175 + (1500 / 1_000_000) * 14;
+        const model53 = codex?.models.find(model => model.model === 'gpt-5.3-codex');
+        const model52 = codex?.models.find(model => model.model === 'gpt-5.2');
+
+        expect(model53).toBeDefined();
+        expect(model52).toBeDefined();
+        expect(model53?.costUSD).toBeCloseTo(expectedPerModel, 10);
+        expect(model52?.costUSD).toBeCloseTo(expectedPerModel, 10);
+        expect(codex?.costUSD).toBeCloseTo(expectedPerModel * 2, 10);
     });
 });

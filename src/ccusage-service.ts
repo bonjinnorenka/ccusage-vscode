@@ -133,6 +133,8 @@ type ModelPricing = {
 const CODEX_MODEL_PRICING: Record<string, ModelPricing> = {
     'gpt-5': { inputCostPerMToken: 1.25, cachedInputCostPerMToken: 0.125, outputCostPerMToken: 10 },
     'gpt-5-mini': { inputCostPerMToken: 0.6, cachedInputCostPerMToken: 0.06, outputCostPerMToken: 2 },
+    'gpt-5.3-codex': { inputCostPerMToken: 1.75, cachedInputCostPerMToken: 0.175, outputCostPerMToken: 14 },
+    'gpt-5.2': { inputCostPerMToken: 1.75, cachedInputCostPerMToken: 0.175, outputCostPerMToken: 14 },
     'gpt-4.1': { inputCostPerMToken: 5, cachedInputCostPerMToken: 0.5, outputCostPerMToken: 15 },
     'gpt-4.1-mini': { inputCostPerMToken: 1, cachedInputCostPerMToken: 0.1, outputCostPerMToken: 4 },
 };
